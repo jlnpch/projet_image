@@ -55,18 +55,20 @@ def transmission_estimation(image,A,omega,taille_voisinage):
     t = np.zeros((h,w))
     nb_patches_h = math.ceil(h/taille_voisinage)
     nb_patches_w = math.ceil(w/taille_voisinage)
-    for p_i in range(nb_patches_h) :
-        for p_j in range(nb_patches_w) :
+    print(nb_patches_h)
+    print(nb_patches_w)
+    for p_i in range(h) :
+        for p_j in range(w) :
             y_min = -1
+            i_min = max(0,round(p_i - taille_voisinage/2))
+            i_max = min(round(p_i+taille_voisinage/2),h)
+            j_min = max(0,round(p_j - taille_voisinage/2))
+            j_max = min(round(p_j+taille_voisinage/2),w)
             for c in range(3) :
-                i_min = p_i*taille_voisinage
-                i_max = min((p_i+1)*taille_voisinage,h)
-                j_min = p_j*taille_voisinage
-                j_max = min((p_j+1)*taille_voisinage,w)
                 y = np.min(image[i_min:i_max,j_min:j_max,c])
                 y_c = y/A[c]
                 if y_c < y_min or y_min == -1 :
                     y_min = y_c
-            t[p_i*taille_voisinage:min((p_i+1)*taille_voisinage,h),p_i*taille_voisinage:min((p_j+1)*taille_voisinage,w)] = 1-omega*y_min
+            t[i_min:i_max,j_min:j_max] = 1-omega*y_min
     
     return t
