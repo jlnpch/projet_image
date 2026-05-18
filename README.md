@@ -1,7 +1,7 @@
 # Single Image Haze Removal
 
 ## Description
-Ce script est une implémentation python de la méthode de dehazing présenté par K.He & al dans la publication "Single Image Haze Removal Using Dark Channel Prior". Cette méthode a pour objectif de supprimer le brouillard d'une image en utilisant une méthode originale nommée du Dark Channel Prior. Ce code permet à partir d'une image présentant du brouillard de reconstruire l'image claire, estimer une carte de transmission affinee par soft matting et de generer une carte de profondeur relative.
+Ce script est une implémentation python de la méthode de dehazing présenté par K.He & al dans la publication "Single Image Haze Removal Using Dark Channel Prior". Cette méthode a pour objectif de supprimer le brouillard d'une image en utilisant une méthode originale nommée Dark Channel Prior. Ce code permet à partir d'une image présentant du brouillard de reconstruire l'image claire, estimer une carte de transmission affinee par soft matting et de generer une carte de profondeur relative.
 
 ## Dependances requises
 python 3.x
