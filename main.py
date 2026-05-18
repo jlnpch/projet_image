@@ -5,10 +5,10 @@ from src.dehazer import *
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
+from skimage.metrics import structural_similarity as ssim
 
-
-def main(image_path, omega, t0, lambda_, taille_voisinage):
-
+def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
+    epsilon = 1e-6
     img = cv.imread(image_path)
     h,w,_ = np.shape(img)
     if h > 500 or w > 500 :
@@ -19,21 +19,22 @@ def main(image_path, omega, t0, lambda_, taille_voisinage):
     dark_channel = compute_dark_channel(img,taille_voisinage)
     print(f"Type: {dark_channel.dtype}, Shape: {dark_channel.shape}")
 
+    if show_plots:
+        plt.subplot(1, 2, 1)
+        plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
+        plt.title("Image originale")
+        plt.axis('off')
 
-    plt.subplot(1, 2, 1)
-    plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
-    plt.title("Image originale")
-    plt.axis('off')
+        plt.subplot(1, 2, 2)
+        plt.imshow(dark_channel, cmap='gray')
+        plt.title("Dark Channel")
+        plt.axis('off')
 
-    plt.subplot(1, 2, 2)
-    plt.imshow(dark_channel, cmap='gray')
-    plt.title("Dark Channel")
-    plt.axis('off')
-
-    plt.show()
+        plt.show()
 
     brigthest_pixels, A = estimate_atmospheric_light(img,dark_channel)
 
+    
     plt.subplot(1, 1, 1)
     plt.imshow(dark_channel, cmap='gray')
     plt.title("Brightest pixels of dark channel")
@@ -43,7 +44,8 @@ def main(image_path, omega, t0, lambda_, taille_voisinage):
         rect = patches.Rectangle((j-0.5, i-0.5), 1, 1, linewidth=1, edgecolor='red', facecolor='none')
         plt.gca().add_patch(rect)
 
-    plt.show()
+    if show_plots:
+        plt.show()
 
     t_ = transmission_estimation(img,A,0.95,taille_voisinage)
     
@@ -69,48 +71,59 @@ def main(image_path, omega, t0, lambda_, taille_voisinage):
     brightness = 5
     contrast = 1
     J = cv.addWeighted(J, contrast, np.zeros(J.shape, J.dtype), 0, brightness)
-
-    plt.subplot(1, 2, 2)
-    plt.imshow(depth_map_normalized, cmap='hot')
-    plt.title("Depth Map")
-    plt.axis('off')
-
-    plt.subplot(1, 2, 1)
-    plt.imshow(t, cmap='gray')
-    plt.title("Estimated")
-    plt.axis('off')
-
-    plt.show()
-
-    plt.subplot(1, 2, 1)
-    plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
-    plt.title("Image originale")
-    plt.axis('off')
-
-    plt.subplot(1, 2, 2)
     test_uint8 = np.clip(J, 0, 255).astype(np.uint8)
-    plt.imshow(cv.cvtColor(test_uint8, cv.COLOR_BGR2RGB))
-    plt.title("Reconstruced image")
-    plt.axis('off')
 
-    plt.show()
+    if show_plots:
+        plt.subplot(1, 2, 2)
+        plt.imshow(depth_map_normalized, cmap='hot')
+        plt.title("Depth Map")
+        plt.axis('off')
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(t, cmap='gray')
+        plt.title("Estimated")
+        plt.axis('off')
+
+        plt.show()
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
+        plt.title("Image originale")
+        plt.axis('off')
+
+        plt.subplot(1, 2, 2)
+        plt.imshow(cv.cvtColor(test_uint8, cv.COLOR_BGR2RGB))
+        plt.title("Reconstruced image")
+        plt.axis('off')
+
+        plt.show()
 
     # Sauvegarde des resultats
 
-    output_dir = "data/output"
-    os.makedirs(output_dir, exist_ok=True)
+    if save :
+        output_dir = "data/output"
+        os.makedirs(output_dir, exist_ok=True)
 
-    base_name = os.path.splitext(os.path.basename(image_path))[0]
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
 
-    output_restored_path = os.path.join(output_dir, f"{base_name}_restored.jpg")
-    cv.imwrite(output_restored_path, test_uint8)
+        output_restored_path = os.path.join(output_dir, f"{base_name}_restored.jpg")
+        cv.imwrite(output_restored_path, test_uint8)
 
-    output_t_path = os.path.join(output_dir, f"{base_name}_transmission.jpg")
-    t_uint8 = (t * 255).astype(np.uint8)
-    cv.imwrite(output_t_path, t_uint8)
+        output_t_path = os.path.join(output_dir, f"{base_name}_transmission.jpg")
+        t_uint8 = (t * 255).astype(np.uint8)
+        cv.imwrite(output_t_path, t_uint8)
 
-    output_depth_path = os.path.join(output_dir, f"{base_name}_depth.png")
-    plt.imsave(output_depth_path, depth_map_normalized, cmap='hot')
+        output_depth_path = os.path.join(output_dir, f"{base_name}_depth.png")
+        plt.imsave(output_depth_path, depth_map_normalized, cmap='hot')
+
+    # Score ssim
+
+    gray_originale = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+    gray_restaured = cv.cvtColor(test_uint8, cv.COLOR_BGR2GRAY)
+
+    (score, diff) = ssim(gray_originale, gray_restaured, full=True)
+    diff = (diff * 255).astype("uint8")
+    print(f"SSIM score: {score}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -121,15 +134,17 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--lambda_", type=float, default=1e-4)
     
     parser.add_argument("-save", "--save", type=bool, default=False)
+    parser.add_argument("-show", "--show_plots", type=bool, default=False)
 
 
     args = parser.parse_args()
     image_path = args.image
-    epsilon = args.epsilon
     lambda_ = args.lambda_
     taille_voisinage = args.patch_size
     omega = args.omega
     t0 = args.t0
+    save = args.save
+    show_plots = args.show_plots
 
     args = parser.parse_args()
-    main(image_path, omega, t0, lambda_, taille_voisinage)
+    main(image_path, omega, t0, lambda_, taille_voisinage,save,show_plots)
