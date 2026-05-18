@@ -52,11 +52,11 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
         plt.show()
 
     # Estimation de la transmission
-    t_ = transmission_estimation(img,A,0.95,taille_voisinage)
+    t_ = transmission_estimation(img,A,omega,taille_voisinage)
     
     # Raffinage de la transmission par soft matting
     t = soft_matting(img,t_,3,epsilon,lambda_)
-    t = np.maximum(t, 0.1)
+    t = np.maximum(t, t0)
 
     # Calcul de la profondeur
     beta = 1.0 
