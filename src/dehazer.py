@@ -1,6 +1,9 @@
+from matplotlib import image
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import scipy
+import os
 
 def compute_dark_channel(image,taille_voisinage) :
     h,w,_ = np.shape(image)
@@ -72,3 +75,50 @@ def transmission_estimation(image,A,omega,taille_voisinage):
             t[i_min:i_max,j_min:j_max] = 1-omega*y_min
     
     return t
+
+def soft_matting(image, t, taille_voisinage,epsilon,lambda_):
+    # image = image.astype(np.float64) / 255.0
+    i_indices = []
+    j_indices = []
+    valeurs = []
+
+    h,w,_ = np.shape(image)
+    vect_image = image.reshape(-1,3)
+
+    for h_k in range(h) :
+        for w_k in range(w) :
+
+            h_min_k = max(0,round(h_k- taille_voisinage/2))
+            h_max_k = min(round(h_k+taille_voisinage/2),h)
+            w_min_k = max(0,round(w_k - taille_voisinage/2))
+            w_max_k = min(round(w_k+taille_voisinage/2),w)
+
+            window_pixels = image[h_min_k:h_max_k, w_min_k:w_max_k, :].reshape(-1, 3)
+            mu_k = np.mean(window_pixels, axis=0)
+            sigma_k = np.cov(window_pixels, rowvar=False, bias=True)
+
+            card_k = (h_max_k - h_min_k) * (w_max_k - w_min_k)
+
+            y_coords, x_coords = np.mgrid[h_min_k:h_max_k, w_min_k:w_max_k]
+            indices_1d_k = (y_coords * w + x_coords).flatten()
+            i_matrix, j_matrix = np.meshgrid(indices_1d_k, indices_1d_k, indexing='ij')
+            i_pairs = i_matrix.flatten()
+            j_pairs = j_matrix.flatten()
+
+            inv_sigma = np.linalg.inv(sigma_k + (epsilon / card_k) * np.eye(3))
+            diff_I = window_pixels - mu_k
+            L_window_terme = diff_I @ inv_sigma @ diff_I.T
+            delta_window = np.eye(card_k)
+            L_window = delta_window - (1.0 / card_k) * (1.0 + L_window_terme)
+
+            i_indices.extend(i_pairs)
+            j_indices.extend(j_pairs)
+            valeurs.extend(L_window.flatten())
+
+            print((h_k*w+w_k)/(h*w))
+
+    L = scipy.sparse.coo_matrix((valeurs, (i_indices, j_indices)), shape=(h*w, h*w))
+    print("L matrix computed")
+    t_refined = scipy.sparse.linalg.cg(L+lambda_*scipy.sparse.eye(h*w), lambda_*t.flatten(), rtol=1e-6, maxiter=1000)
+    print("Soft matting done")
+    return t_refined[0].reshape(h,w)
