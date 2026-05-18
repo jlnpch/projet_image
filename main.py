@@ -9,6 +9,8 @@ from skimage.metrics import structural_similarity as ssim
 
 def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
     epsilon = 1e-6
+
+    # Lecture et redimensionnement de l'image
     img = cv.imread(image_path)
     h,w,_ = np.shape(img)
     if h > 500 or w > 500 :
@@ -16,6 +18,7 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
         new_size = (int(w * ratio), int(h * ratio))
         img = cv.resize(img, new_size)
 
+    # Calcul du dark channel
     dark_channel = compute_dark_channel(img,taille_voisinage)
     print(f"Type: {dark_channel.dtype}, Shape: {dark_channel.shape}")
 
@@ -32,6 +35,7 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
 
         plt.show()
 
+    # Estimation de la lumière atmosphérique
     brigthest_pixels, A = estimate_atmospheric_light(img,dark_channel)
 
     
@@ -47,20 +51,20 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
     if show_plots:
         plt.show()
 
+    # Estimation de la transmission
     t_ = transmission_estimation(img,A,0.95,taille_voisinage)
     
+    # Raffinage de la transmission par soft matting
     t = soft_matting(img,t_,3,epsilon,lambda_)
     t = np.maximum(t, 0.1)
 
+    # Calcul de la profondeur
     beta = 1.0 
     depth_map = -np.log(t) / beta
     depth_map_normalized = (depth_map - np.min(depth_map)) / (np.max(depth_map) - np.min(depth_map))
     
-    print(A)
-
-    #Test sans soft matting
+    # Reconstruction de l'image sans brouillard
     h,w,_ = np.shape(img)
-
     img_float = img.astype(np.float64) 
     J = np.zeros((h, w, 3), dtype=np.float64)
 
@@ -71,7 +75,7 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
     brightness = 5
     contrast = 1
     J = cv.addWeighted(J, contrast, np.zeros(J.shape, J.dtype), 0, brightness)
-    test_uint8 = np.clip(J, 0, 255).astype(np.uint8)
+    reconstructed_image = np.clip(J, 0, 255).astype(np.uint8)
 
     if show_plots:
         plt.subplot(1, 2, 2)
@@ -92,8 +96,8 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
         plt.axis('off')
 
         plt.subplot(1, 2, 2)
-        plt.imshow(cv.cvtColor(test_uint8, cv.COLOR_BGR2RGB))
-        plt.title("Reconstruced image")
+        plt.imshow(cv.cvtColor(reconstructed_image, cv.COLOR_BGR2RGB))
+        plt.title("Reconstructed image")
         plt.axis('off')
 
         plt.show()
@@ -107,7 +111,7 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
         base_name = os.path.splitext(os.path.basename(image_path))[0]
 
         output_restored_path = os.path.join(output_dir, f"{base_name}_restored.jpg")
-        cv.imwrite(output_restored_path, test_uint8)
+        cv.imwrite(output_restored_path, reconstructed_image)
 
         output_t_path = os.path.join(output_dir, f"{base_name}_transmission.jpg")
         t_uint8 = (t * 255).astype(np.uint8)
@@ -119,23 +123,22 @@ def main(image_path, omega, t0, lambda_, taille_voisinage, save, show_plots):
     # Score ssim
 
     gray_originale = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-    gray_restaured = cv.cvtColor(test_uint8, cv.COLOR_BGR2GRAY)
+    gray_restaured = cv.cvtColor(reconstructed_image, cv.COLOR_BGR2GRAY)
 
     (score, diff) = ssim(gray_originale, gray_restaured, full=True)
     diff = (diff * 255).astype("uint8")
     print(f"SSIM score: {score}")
 
 if __name__ == "__main__":
+    # Récupération des arguments de la ligne de commande
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--image")
+    parser.add_argument("-i", "--image",help="chemin de l'image à traiter", required=True)
     parser.add_argument("-w", "--omega", type=float, default=0.95)
     parser.add_argument("-t", "--t0", type=float, default=0.1)
     parser.add_argument("-p", "--patch_size", type=int, default=15)
     parser.add_argument("-l", "--lambda_", type=float, default=1e-4)
-    
-    parser.add_argument("-save", "--save", type=bool, default=False)
-    parser.add_argument("-show", "--show_plots", type=bool, default=False)
-
+    parser.add_argument("-save", "--save", type=bool, default=False, help="sauvegarder les résultats dans le dossier data/output")
+    parser.add_argument("-show", "--show_plots", type=bool, default=False, help="afficher les graphiques")
 
     args = parser.parse_args()
     image_path = args.image
@@ -146,5 +149,5 @@ if __name__ == "__main__":
     save = args.save
     show_plots = args.show_plots
 
-    args = parser.parse_args()
+    # Appel de la fonction principale
     main(image_path, omega, t0, lambda_, taille_voisinage,save,show_plots)
